@@ -28,7 +28,7 @@ export function useTokenStats() {
   return useQuery({
     queryKey: ['tokenStats'],
     queryFn: getTokenStats,
-    refetchInterval: 60000, // 每 60 秒刷新一次
+    refetchInterval: 5000, // 每 5 秒刷新一次
   })
 }
 
