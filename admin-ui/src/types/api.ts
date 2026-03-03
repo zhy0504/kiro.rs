@@ -35,6 +35,18 @@ export interface BalanceResponse {
   nextResetAt: number | null
 }
 
+// Token 统计响应
+export interface TokenStatsResponse {
+  totalRequests: number
+  successfulRequests: number
+  failedRequests: number
+  totalTokens: number
+  cacheTokens: number
+  thinkingTokens: number
+  rpm: number
+  tpm: number
+}
+
 // 成功响应
 export interface SuccessResponse {
   success: boolean

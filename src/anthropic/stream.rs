@@ -456,6 +456,16 @@ impl SseStateManager {
 /// 上下文窗口大小（200k tokens）
 const CONTEXT_WINDOW_SIZE: i32 = 200_000;
 
+/// 流式请求最终 usage 快照
+#[derive(Debug, Clone, Copy)]
+pub struct StreamUsageSnapshot {
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    pub cache_creation_input_tokens: i32,
+    pub cache_read_input_tokens: i32,
+    pub thinking_tokens: i32,
+}
+
 /// 流处理上下文
 pub struct StreamContext {
     /// SSE 状态管理器
@@ -470,6 +480,8 @@ pub struct StreamContext {
     pub context_input_tokens: Option<i32>,
     /// 输出 tokens 累计
     pub output_tokens: i32,
+    /// 思考 tokens 累计（单独统计）
+    pub thinking_tokens: i32,
     /// 工具块索引映射 (tool_id -> block_index)
     pub tool_block_indices: HashMap<String, i32>,
     /// thinking 是否启用
@@ -503,6 +515,7 @@ impl StreamContext {
             input_tokens,
             context_input_tokens: None,
             output_tokens: 0,
+            thinking_tokens: 0,
             tool_block_indices: HashMap::new(),
             thinking_enabled,
             thinking_buffer: String::new(),
@@ -844,8 +857,23 @@ impl StreamContext {
         events
     }
 
+    /// 获取当前流式 usage 快照
+    pub fn usage_snapshot(&self) -> StreamUsageSnapshot {
+        StreamUsageSnapshot {
+            input_tokens: self.context_input_tokens.unwrap_or(self.input_tokens),
+            output_tokens: self.output_tokens,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+            thinking_tokens: self.thinking_tokens,
+        }
+    }
+
     /// 创建 thinking_delta 事件
-    fn create_thinking_delta_event(&self, index: i32, thinking: &str) -> SseEvent {
+    fn create_thinking_delta_event(&mut self, index: i32, thinking: &str) -> SseEvent {
+        if !thinking.is_empty() {
+            self.thinking_tokens += estimate_tokens(thinking);
+        }
+
         SseEvent::new(
             "content_block_delta",
             json!({
@@ -1155,6 +1183,11 @@ impl BufferedStreamContext {
         }
 
         std::mem::take(&mut self.event_buffer)
+    }
+
+    /// 获取当前缓冲流 usage 快照
+    pub fn usage_snapshot(&self) -> StreamUsageSnapshot {
+        self.inner.usage_snapshot()
     }
 }
 

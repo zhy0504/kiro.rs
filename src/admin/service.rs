@@ -15,6 +15,7 @@ use super::error::AdminServiceError;
 use super::types::{
     AddCredentialRequest, AddCredentialResponse, BalanceResponse, CredentialStatusItem,
     CredentialsStatusResponse, LoadBalancingModeResponse, SetLoadBalancingModeRequest,
+    TokenStatsResponse,
 };
 
 /// 余额缓存过期时间（秒），5 分钟
@@ -86,6 +87,21 @@ impl AdminService {
             available: snapshot.available,
             current_id: snapshot.current_id,
             credentials,
+        }
+    }
+
+    /// 获取全局请求/Token 统计
+    pub fn get_token_stats(&self) -> TokenStatsResponse {
+        let stats = self.token_manager.token_stats_snapshot();
+        TokenStatsResponse {
+            total_requests: stats.total_requests,
+            successful_requests: stats.successful_requests,
+            failed_requests: stats.failed_requests,
+            total_tokens: stats.total_tokens,
+            cache_tokens: stats.cache_tokens,
+            thinking_tokens: stats.thinking_tokens,
+            rpm: stats.rpm,
+            tpm: stats.tpm,
         }
     }
 

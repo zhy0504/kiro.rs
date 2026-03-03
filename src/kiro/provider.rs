@@ -244,7 +244,9 @@ impl KiroProvider {
     /// # Returns
     /// 返回原始的 HTTP Response，不做解析
     pub async fn call_api(&self, request_body: &str) -> anyhow::Result<reqwest::Response> {
-        self.call_api_with_retry(request_body, false).await
+        let result = self.call_api_with_retry(request_body, false).await;
+        self.token_manager.report_request_result(result.is_ok());
+        result
     }
 
     /// 发送流式 API 请求
@@ -261,7 +263,9 @@ impl KiroProvider {
     /// # Returns
     /// 返回原始的 HTTP Response，调用方负责处理流式数据
     pub async fn call_api_stream(&self, request_body: &str) -> anyhow::Result<reqwest::Response> {
-        self.call_api_with_retry(request_body, true).await
+        let result = self.call_api_with_retry(request_body, true).await;
+        self.token_manager.report_request_result(result.is_ok());
+        result
     }
 
     /// 发送 MCP API 请求
@@ -274,7 +278,9 @@ impl KiroProvider {
     /// # Returns
     /// 返回原始的 HTTP Response
     pub async fn call_mcp(&self, request_body: &str) -> anyhow::Result<reqwest::Response> {
-        self.call_mcp_with_retry(request_body).await
+        let result = self.call_mcp_with_retry(request_body).await;
+        self.token_manager.report_request_result(result.is_ok());
+        result
     }
 
     /// 内部方法：带重试逻辑的 MCP API 调用

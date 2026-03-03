@@ -501,6 +501,13 @@ pub async fn handle_websearch_request(
         }
     };
 
+    // 统计 Token（WebSearch 目前 cache tokens 固定为 0）
+    let summary = generate_search_summary(&query, &search_results);
+    let output_tokens = (summary.len() as i32 + 3) / 4;
+    provider
+        .token_manager()
+        .report_token_usage(input_tokens, output_tokens, 0, 0);
+
     // 4. 生成 SSE 响应
     let model = payload.model.clone();
     let stream =

@@ -158,6 +158,30 @@ pub struct BalanceResponse {
     pub next_reset_at: Option<f64>,
 }
 
+// ============ Token 统计 ============
+
+/// Token 统计响应
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenStatsResponse {
+    /// 请求总数（成功 + 失败）
+    pub total_requests: u64,
+    /// 请求成功次数
+    pub successful_requests: u64,
+    /// 请求失败次数
+    pub failed_requests: u64,
+    /// Token 总数（input + output + cache + thinking）
+    pub total_tokens: u64,
+    /// 缓存 Token 总数
+    pub cache_tokens: u64,
+    /// 思考 Token 总数
+    pub thinking_tokens: u64,
+    /// 每分钟请求数（最近 60 秒）
+    pub rpm: u64,
+    /// 每分钟 Token 数（最近 60 秒）
+    pub tpm: u64,
+}
+
 // ============ 负载均衡配置 ============
 
 /// 负载均衡模式响应

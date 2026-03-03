@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use super::converter::{ConversionError, convert_request};
 use super::middleware::AppState;
-use super::stream::{BufferedStreamContext, SseEvent, StreamContext};
+use super::stream::{BufferedStreamContext, SseEvent, StreamContext, StreamUsageSnapshot};
 use super::types::{CountTokensRequest, CountTokensResponse, ErrorResponse, MessagesRequest, Model, ModelsResponse, OutputConfig, Thinking};
 use super::websearch;
 
@@ -316,7 +316,7 @@ async fn handle_stream_request(
     let initial_events = ctx.generate_initial_events();
 
     // 创建 SSE 流
-    let stream = create_sse_stream(response, ctx, initial_events);
+    let stream = create_sse_stream(response, ctx, initial_events, provider.clone());
 
     // 返回 SSE 响应
     Response::builder()
@@ -341,6 +341,7 @@ fn create_sse_stream(
     response: reqwest::Response,
     ctx: StreamContext,
     initial_events: Vec<SseEvent>,
+    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     // 先发送初始事件
     let initial_stream = stream::iter(
@@ -353,8 +354,15 @@ fn create_sse_stream(
     let body_stream = response.bytes_stream();
 
     let processing_stream = stream::unfold(
-        (body_stream, ctx, EventStreamDecoder::new(), false, interval(Duration::from_secs(PING_INTERVAL_SECS))),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
+        (
+            body_stream,
+            ctx,
+            EventStreamDecoder::new(),
+            false,
+            interval(Duration::from_secs(PING_INTERVAL_SECS)),
+            provider,
+        ),
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, provider)| async move {
             if finished {
                 return None;
             }
@@ -391,26 +399,37 @@ fn create_sse_stream(
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
 
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                            Some((
+                                stream::iter(bytes),
+                                (body_stream, ctx, decoder, false, ping_interval, provider),
+                            ))
                         }
                         Some(Err(e)) => {
                             tracing::error!("读取响应流失败: {}", e);
                             // 发送最终事件并结束
                             let final_events = ctx.generate_final_events();
+                            report_stream_usage(provider.as_ref(), ctx.usage_snapshot());
                             let bytes: Vec<Result<Bytes, Infallible>> = final_events
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((
+                                stream::iter(bytes),
+                                (body_stream, ctx, decoder, true, ping_interval, provider),
+                            ))
                         }
                         None => {
                             // 流结束，发送最终事件
                             let final_events = ctx.generate_final_events();
+                            report_stream_usage(provider.as_ref(), ctx.usage_snapshot());
                             let bytes: Vec<Result<Bytes, Infallible>> = final_events
                                 .into_iter()
                                 .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                 .collect();
-                            Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)))
+                            Some((
+                                stream::iter(bytes),
+                                (body_stream, ctx, decoder, true, ping_interval, provider),
+                            ))
                         }
                     }
                 }
@@ -418,7 +437,10 @@ fn create_sse_stream(
                 _ = ping_interval.tick() => {
                     tracing::trace!("发送 ping 保活事件");
                     let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                    Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)))
+                    Some((
+                        stream::iter(bytes),
+                        (body_stream, ctx, decoder, false, ping_interval, provider),
+                    ))
                 }
             }
         },
@@ -572,6 +594,11 @@ async fn handle_non_stream_request(
 
     // 使用从 contextUsageEvent 计算的 input_tokens，如果没有则使用估算值
     let final_input_tokens = context_input_tokens.unwrap_or(input_tokens);
+
+    let thinking_tokens = estimate_thinking_tokens_from_content(&content);
+    provider
+        .token_manager()
+        .report_token_usage(final_input_tokens, output_tokens, 0, thinking_tokens);
 
     // 构建 Anthropic 响应
     let response_body = json!({
@@ -800,7 +827,7 @@ async fn handle_stream_request_buffered(
     let ctx = BufferedStreamContext::new(model, estimated_input_tokens, thinking_enabled);
 
     // 创建缓冲 SSE 流
-    let stream = create_buffered_sse_stream(response, ctx);
+    let stream = create_buffered_sse_stream(response, ctx, provider.clone());
 
     // 返回 SSE 响应
     Response::builder()
@@ -822,6 +849,7 @@ async fn handle_stream_request_buffered(
 fn create_buffered_sse_stream(
     response: reqwest::Response,
     ctx: BufferedStreamContext,
+    provider: std::sync::Arc<crate::kiro::provider::KiroProvider>,
 ) -> impl Stream<Item = Result<Bytes, Infallible>> {
     let body_stream = response.bytes_stream();
 
@@ -832,8 +860,9 @@ fn create_buffered_sse_stream(
             EventStreamDecoder::new(),
             false,
             interval(Duration::from_secs(PING_INTERVAL_SECS)),
+            provider,
         ),
-        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval)| async move {
+        |(mut body_stream, mut ctx, mut decoder, finished, mut ping_interval, provider)| async move {
             if finished {
                 return None;
             }
@@ -848,7 +877,10 @@ fn create_buffered_sse_stream(
                     _ = ping_interval.tick() => {
                         tracing::trace!("发送 ping 保活事件（缓冲模式）");
                         let bytes: Vec<Result<Bytes, Infallible>> = vec![Ok(create_ping_sse())];
-                        return Some((stream::iter(bytes), (body_stream, ctx, decoder, false, ping_interval)));
+                        return Some((
+                            stream::iter(bytes),
+                            (body_stream, ctx, decoder, false, ping_interval, provider),
+                        ));
                     }
 
                     // 然后处理数据流
@@ -879,20 +911,28 @@ fn create_buffered_sse_stream(
                                 tracing::error!("读取响应流失败: {}", e);
                                 // 发生错误，完成处理并返回所有事件
                                 let all_events = ctx.finish_and_get_all_events();
+                                report_stream_usage(provider.as_ref(), ctx.usage_snapshot());
                                 let bytes: Vec<Result<Bytes, Infallible>> = all_events
                                     .into_iter()
                                     .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                     .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                return Some((
+                                    stream::iter(bytes),
+                                    (body_stream, ctx, decoder, true, ping_interval, provider),
+                                ));
                             }
                             None => {
                                 // 流结束，完成处理并返回所有事件（已更正 input_tokens）
                                 let all_events = ctx.finish_and_get_all_events();
+                                report_stream_usage(provider.as_ref(), ctx.usage_snapshot());
                                 let bytes: Vec<Result<Bytes, Infallible>> = all_events
                                     .into_iter()
                                     .map(|e| Ok(Bytes::from(e.to_sse_string())))
                                     .collect();
-                                return Some((stream::iter(bytes), (body_stream, ctx, decoder, true, ping_interval)));
+                                return Some((
+                                    stream::iter(bytes),
+                                    (body_stream, ctx, decoder, true, ping_interval, provider),
+                                ));
                             }
                         }
                     }
@@ -901,4 +941,59 @@ fn create_buffered_sse_stream(
         },
     )
     .flatten()
+}
+
+fn report_stream_usage(
+    provider: &crate::kiro::provider::KiroProvider,
+    usage: StreamUsageSnapshot,
+) {
+    let cache_tokens = usage
+        .cache_creation_input_tokens
+        .saturating_add(usage.cache_read_input_tokens);
+    provider.token_manager().report_token_usage(
+        usage.input_tokens,
+        usage.output_tokens,
+        cache_tokens,
+        usage.thinking_tokens,
+    );
+}
+
+fn estimate_thinking_tokens_from_content(content: &[serde_json::Value]) -> i32 {
+    content
+        .iter()
+        .filter_map(|block| {
+            if block.get("type").and_then(|v| v.as_str()) == Some("text") {
+                block.get("text").and_then(|v| v.as_str())
+            } else {
+                None
+            }
+        })
+        .map(estimate_thinking_tokens_from_text)
+        .sum()
+}
+
+fn estimate_thinking_tokens_from_text(text: &str) -> i32 {
+    let mut total = 0;
+    let mut remaining = text;
+    const START: &str = "<thinking>";
+    const END: &str = "</thinking>";
+
+    while let Some(start_idx) = remaining.find(START) {
+        let after_start = &remaining[start_idx + START.len()..];
+        let Some(end_idx) = after_start.find(END) else {
+            break;
+        };
+
+        let thinking_content = &after_start[..end_idx];
+        if !thinking_content.is_empty() {
+            total += token::estimate_output_tokens(&[json!({
+                "type": "text",
+                "text": thinking_content
+            })]);
+        }
+
+        remaining = &after_start[end_idx + END.len()..];
+    }
+
+    total.max(0)
 }

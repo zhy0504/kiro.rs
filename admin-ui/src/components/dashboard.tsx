@@ -12,7 +12,7 @@ import { AddCredentialDialog } from '@/components/add-credential-dialog'
 import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { KamImportDialog } from '@/components/kam-import-dialog'
 import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-dialog'
-import { useCredentials, useDeleteCredential, useResetFailure, useLoadBalancingMode, useSetLoadBalancingMode } from '@/hooks/use-credentials'
+import { useCredentials, useDeleteCredential, useResetFailure, useLoadBalancingMode, useSetLoadBalancingMode, useTokenStats } from '@/hooks/use-credentials'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { BalanceResponse } from '@/types/api'
@@ -48,10 +48,13 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch } = useCredentials()
+  const { data: tokenStats } = useTokenStats()
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
   const { data: loadBalancingData, isLoading: isLoadingMode } = useLoadBalancingMode()
   const { mutate: setLoadBalancingMode, isPending: isSettingMode } = useSetLoadBalancingMode()
+
+  const formatNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
 
   // 计算分页
   const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)
@@ -115,6 +118,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const handleRefresh = () => {
     refetch()
+    queryClient.invalidateQueries({ queryKey: ['tokenStats'] })
     toast.success('已刷新凭据列表')
   }
 
@@ -523,7 +527,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
       {/* 主内容 */}
       <main className="container mx-auto px-4 md:px-8 py-6">
         {/* 统计卡片 */}
-        <div className="grid gap-4 md:grid-cols-3 mb-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -531,7 +535,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{data?.total || 0}</div>
+              <div className="text-2xl font-bold">{formatNumber(data?.total)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -541,7 +545,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{data?.available || 0}</div>
+              <div className="text-2xl font-bold text-green-600">{formatNumber(data?.available)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -555,6 +559,52 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 #{data?.currentId || '-'}
                 <Badge variant="success">活跃</Badge>
               </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                总请求数
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalRequests)}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                成功 {formatNumber(tokenStats?.successfulRequests)} / 失败 {formatNumber(tokenStats?.failedRequests)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                总 Token 数
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalTokens)}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                缓存 {formatNumber(tokenStats?.cacheTokens)} / 思考 {formatNumber(tokenStats?.thinkingTokens)}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                RPM
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(tokenStats?.rpm)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                TPM
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatNumber(tokenStats?.tpm)}</div>
             </CardContent>
           </Card>
         </div>

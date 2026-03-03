@@ -3,6 +3,7 @@ import { storage } from '@/lib/storage'
 import type {
   CredentialsStatusResponse,
   BalanceResponse,
+  TokenStatsResponse,
   SuccessResponse,
   SetDisabledRequest,
   SetPriorityRequest,
@@ -30,6 +31,12 @@ api.interceptors.request.use((config) => {
 // 获取所有凭据状态
 export async function getCredentials(): Promise<CredentialsStatusResponse> {
   const { data } = await api.get<CredentialsStatusResponse>('/credentials')
+  return data
+}
+
+// 获取全局请求/Token 统计
+export async function getTokenStats(): Promise<TokenStatsResponse> {
+  const { data } = await api.get<TokenStatsResponse>('/stats')
   return data
 }
 

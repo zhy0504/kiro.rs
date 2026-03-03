@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::sync::Mutex as TokioMutex;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration as StdDuration, Instant};
@@ -462,6 +462,41 @@ pub struct ManagerSnapshot {
     pub available: usize,
 }
 
+/// 全局 Token 统计快照（用于 Admin API）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenStatsSnapshot {
+    /// 请求总数（成功 + 失败）
+    pub total_requests: u64,
+    /// 请求成功次数
+    pub successful_requests: u64,
+    /// 请求失败次数
+    pub failed_requests: u64,
+    /// Token 总数（input + output + cache + thinking）
+    pub total_tokens: u64,
+    /// 缓存 Token 总数（cache_creation + cache_read）
+    pub cache_tokens: u64,
+    /// 思考 Token 总数（统计项，单独展示）
+    pub thinking_tokens: u64,
+    /// 每分钟请求数（最近 60 秒滚动窗口）
+    pub rpm: u64,
+    /// 每分钟 Token 数（最近 60 秒滚动窗口）
+    pub tpm: u64,
+}
+
+/// 运行时统计（内存态）
+#[derive(Debug, Default)]
+struct RuntimeTokenStats {
+    total_requests: u64,
+    successful_requests: u64,
+    failed_requests: u64,
+    total_tokens: u64,
+    cache_tokens: u64,
+    thinking_tokens: u64,
+    recent_requests: VecDeque<i64>,
+    recent_token_events: VecDeque<(i64, u64)>,
+}
+
 /// 多凭据 Token 管理器
 ///
 /// 支持多个凭据的管理，实现固定优先级 + 故障转移策略
@@ -485,12 +520,16 @@ pub struct MultiTokenManager {
     last_stats_save_at: Mutex<Option<Instant>>,
     /// 统计数据是否有未落盘更新
     stats_dirty: AtomicBool,
+    /// 全局请求/Token 统计（用于 Admin 面板）
+    runtime_stats: Mutex<RuntimeTokenStats>,
 }
 
 /// 每个凭据最大 API 调用失败次数
 const MAX_FAILURES_PER_CREDENTIAL: u32 = 3;
 /// 统计数据持久化防抖间隔
 const STATS_SAVE_DEBOUNCE: StdDuration = StdDuration::from_secs(30);
+/// RPM/TPM 滚动窗口（秒）
+const TOKEN_STATS_WINDOW_SECS: i64 = 60;
 
 /// API 调用上下文
 ///
@@ -595,6 +634,7 @@ impl MultiTokenManager {
             load_balancing_mode: Mutex::new(load_balancing_mode),
             last_stats_save_at: Mutex::new(None),
             stats_dirty: AtomicBool::new(false),
+            runtime_stats: Mutex::new(RuntimeTokenStats::default()),
         };
 
         // 如果有新分配的 ID 或新生成的 machineId，立即持久化到配置文件
@@ -1082,6 +1122,99 @@ impl MultiTokenManager {
             }
         }
         self.save_stats_debounced();
+    }
+
+    fn prune_runtime_stats_window(stats: &mut RuntimeTokenStats, now_ts: i64) {
+        let cutoff = now_ts - TOKEN_STATS_WINDOW_SECS + 1;
+
+        while let Some(ts) = stats.recent_requests.front() {
+            if *ts < cutoff {
+                stats.recent_requests.pop_front();
+            } else {
+                break;
+            }
+        }
+
+        while let Some((ts, _)) = stats.recent_token_events.front() {
+            if *ts < cutoff {
+                stats.recent_token_events.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// 记录一次请求结果（用于总请求/成功/失败/RPM）
+    pub fn report_request_result(&self, success: bool) {
+        let now_ts = Utc::now().timestamp();
+        let mut stats = self.runtime_stats.lock();
+
+        stats.total_requests = stats.total_requests.saturating_add(1);
+        if success {
+            stats.successful_requests = stats.successful_requests.saturating_add(1);
+        } else {
+            stats.failed_requests = stats.failed_requests.saturating_add(1);
+        }
+
+        stats.recent_requests.push_back(now_ts);
+        Self::prune_runtime_stats_window(&mut stats, now_ts);
+    }
+
+    /// 记录一次 Token 使用
+    ///
+    /// - total_tokens = input + output + cache + thinking
+    /// - thinking_tokens 单独维度同时保留，便于前端拆分展示
+    pub fn report_token_usage(
+        &self,
+        input_tokens: i32,
+        output_tokens: i32,
+        cache_tokens: i32,
+        thinking_tokens: i32,
+    ) {
+        let input = input_tokens.max(0) as u64;
+        let output = output_tokens.max(0) as u64;
+        let cache = cache_tokens.max(0) as u64;
+        let thinking = thinking_tokens.max(0) as u64;
+        let total = input
+            .saturating_add(output)
+            .saturating_add(cache)
+            .saturating_add(thinking);
+
+        let now_ts = Utc::now().timestamp();
+        let mut stats = self.runtime_stats.lock();
+
+        stats.total_tokens = stats.total_tokens.saturating_add(total);
+        stats.cache_tokens = stats.cache_tokens.saturating_add(cache);
+        stats.thinking_tokens = stats.thinking_tokens.saturating_add(thinking);
+
+        if total > 0 {
+            stats.recent_token_events.push_back((now_ts, total));
+        }
+        Self::prune_runtime_stats_window(&mut stats, now_ts);
+    }
+
+    /// 获取全局 Token 统计快照（用于 Admin API）
+    pub fn token_stats_snapshot(&self) -> TokenStatsSnapshot {
+        let now_ts = Utc::now().timestamp();
+        let mut stats = self.runtime_stats.lock();
+        Self::prune_runtime_stats_window(&mut stats, now_ts);
+
+        let tpm = stats
+            .recent_token_events
+            .iter()
+            .map(|(_, tokens)| *tokens)
+            .sum::<u64>();
+
+        TokenStatsSnapshot {
+            total_requests: stats.total_requests,
+            successful_requests: stats.successful_requests,
+            failed_requests: stats.failed_requests,
+            total_tokens: stats.total_tokens,
+            cache_tokens: stats.cache_tokens,
+            thinking_tokens: stats.thinking_tokens,
+            rpm: stats.recent_requests.len() as u64,
+            tpm,
+        }
     }
 
     /// 报告指定凭据 API 调用失败

@@ -10,7 +10,7 @@ use super::{
     middleware::AdminState,
     types::{
         AddCredentialRequest, SetDisabledRequest, SetLoadBalancingModeRequest, SetPriorityRequest,
-        SuccessResponse,
+        SuccessResponse, TokenStatsResponse,
     },
 };
 
@@ -18,6 +18,13 @@ use super::{
 /// 获取所有凭据状态
 pub async fn get_all_credentials(State(state): State<AdminState>) -> impl IntoResponse {
     let response = state.service.get_all_credentials();
+    Json(response)
+}
+
+/// GET /api/admin/stats
+/// 获取全局请求/Token 统计
+pub async fn get_token_stats(State(state): State<AdminState>) -> impl IntoResponse {
+    let response: TokenStatsResponse = state.service.get_token_stats();
     Json(response)
 }
 

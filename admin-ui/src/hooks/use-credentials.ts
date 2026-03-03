@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getCredentials,
+  getTokenStats,
   setCredentialDisabled,
   setCredentialPriority,
   resetCredentialFailure,
@@ -18,6 +19,15 @@ export function useCredentials() {
     queryKey: ['credentials'],
     queryFn: getCredentials,
     refetchInterval: 30000, // 每 30 秒刷新一次
+  })
+}
+
+// 查询全局请求/Token 统计
+export function useTokenStats() {
+  return useQuery({
+    queryKey: ['tokenStats'],
+    queryFn: getTokenStats,
+    refetchInterval: 5000, // 每 5 秒刷新一次
   })
 }
 
