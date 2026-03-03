@@ -14,8 +14,8 @@ use crate::kiro::token_manager::MultiTokenManager;
 use super::error::AdminServiceError;
 use super::types::{
     AddCredentialRequest, AddCredentialResponse, BalanceResponse, CredentialStatusItem,
-    CredentialsStatusResponse, LoadBalancingModeResponse, SetLoadBalancingModeRequest,
-    TokenStatsResponse,
+    CredentialUsageSummaryResponse, CredentialsStatusResponse, LoadBalancingModeResponse,
+    SetLoadBalancingModeRequest, TokenStatsResponse,
 };
 
 /// 余额缓存过期时间（秒），5 分钟
@@ -102,6 +102,59 @@ impl AdminService {
             thinking_tokens: stats.thinking_tokens,
             rpm: stats.rpm,
             tpm: stats.tpm,
+        }
+    }
+
+    /// 获取所有可用凭据的用量汇总
+    ///
+    /// 说明：
+    /// - 仅统计未禁用凭据
+    /// - 单凭据用量查询复用 get_balance（包含 5 分钟缓存）
+    /// - 允许部分失败，返回已聚合成功结果与失败数量
+    pub async fn get_credential_usage_summary(&self) -> CredentialUsageSummaryResponse {
+        let snapshot = self.token_manager.snapshot();
+        let available_ids: Vec<u64> = snapshot
+            .credentials
+            .iter()
+            .filter(|cred| !cred.disabled)
+            .map(|cred| cred.id)
+            .collect();
+
+        let mut queried_credential_count: u64 = 0;
+        let mut failed_credential_count: u64 = 0;
+        let mut total_usage_limit: f64 = 0.0;
+        let mut total_current_usage: f64 = 0.0;
+        let mut total_remaining: f64 = 0.0;
+
+        for id in &available_ids {
+            match self.get_balance(*id).await {
+                Ok(balance) => {
+                    queried_credential_count += 1;
+                    total_usage_limit += balance.usage_limit;
+                    total_current_usage += balance.current_usage;
+                    total_remaining += balance.remaining;
+                }
+                Err(err) => {
+                    failed_credential_count += 1;
+                    tracing::warn!("聚合可用凭据用量时查询失败 #{}: {}", id, err);
+                }
+            }
+        }
+
+        let remaining_percentage = if total_usage_limit > 0.0 {
+            ((total_remaining / total_usage_limit) * 100.0).clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+
+        CredentialUsageSummaryResponse {
+            available_credential_count: available_ids.len() as u64,
+            queried_credential_count,
+            failed_credential_count,
+            total_usage_limit,
+            total_current_usage,
+            total_remaining,
+            remaining_percentage,
         }
     }
 

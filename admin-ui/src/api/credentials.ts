@@ -3,6 +3,7 @@ import { storage } from '@/lib/storage'
 import type {
   CredentialsStatusResponse,
   BalanceResponse,
+  CredentialUsageSummaryResponse,
   TokenStatsResponse,
   SuccessResponse,
   SetDisabledRequest,
@@ -37,6 +38,12 @@ export async function getCredentials(): Promise<CredentialsStatusResponse> {
 // 获取全局请求/Token 统计
 export async function getTokenStats(): Promise<TokenStatsResponse> {
   const { data } = await api.get<TokenStatsResponse>('/stats')
+  return data
+}
+
+// 获取可用凭据用量汇总
+export async function getCredentialUsageSummary(): Promise<CredentialUsageSummaryResponse> {
+  const { data } = await api.get<CredentialUsageSummaryResponse>('/usage-summary')
   return data
 }
 

@@ -9,8 +9,8 @@ use axum::{
 use super::{
     middleware::AdminState,
     types::{
-        AddCredentialRequest, SetDisabledRequest, SetLoadBalancingModeRequest, SetPriorityRequest,
-        SuccessResponse, TokenStatsResponse,
+        AddCredentialRequest, CredentialUsageSummaryResponse, SetDisabledRequest,
+        SetLoadBalancingModeRequest, SetPriorityRequest, SuccessResponse, TokenStatsResponse,
     },
 };
 
@@ -25,6 +25,13 @@ pub async fn get_all_credentials(State(state): State<AdminState>) -> impl IntoRe
 /// 获取全局请求/Token 统计
 pub async fn get_token_stats(State(state): State<AdminState>) -> impl IntoResponse {
     let response: TokenStatsResponse = state.service.get_token_stats();
+    Json(response)
+}
+
+/// GET /api/admin/usage-summary
+/// 获取可用凭据用量汇总
+pub async fn get_usage_summary(State(state): State<AdminState>) -> impl IntoResponse {
+    let response: CredentialUsageSummaryResponse = state.service.get_credential_usage_summary().await;
     Json(response)
 }
 

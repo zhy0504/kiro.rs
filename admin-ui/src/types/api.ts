@@ -47,6 +47,17 @@ export interface TokenStatsResponse {
   tpm: number
 }
 
+// 可用凭据用量汇总响应
+export interface CredentialUsageSummaryResponse {
+  availableCredentialCount: number
+  queriedCredentialCount: number
+  failedCredentialCount: number
+  totalUsageLimit: number
+  totalCurrentUsage: number
+  totalRemaining: number
+  remainingPercentage: number
+}
+
 // 成功响应
 export interface SuccessResponse {
   success: boolean

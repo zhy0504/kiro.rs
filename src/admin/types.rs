@@ -182,6 +182,26 @@ pub struct TokenStatsResponse {
     pub tpm: u64,
 }
 
+/// 可用凭据用量汇总响应
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialUsageSummaryResponse {
+    /// 可用凭据数量（未禁用）
+    pub available_credential_count: u64,
+    /// 成功查询到用量的凭据数量
+    pub queried_credential_count: u64,
+    /// 查询失败的凭据数量
+    pub failed_credential_count: u64,
+    /// 总限额
+    pub total_usage_limit: f64,
+    /// 总已用
+    pub total_current_usage: f64,
+    /// 总剩余
+    pub total_remaining: f64,
+    /// 总剩余占比（0~100）
+    pub remaining_percentage: f64,
+}
+
 // ============ 负载均衡配置 ============
 
 /// 负载均衡模式响应

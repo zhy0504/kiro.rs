@@ -12,7 +12,15 @@ import { AddCredentialDialog } from '@/components/add-credential-dialog'
 import { BatchImportDialog } from '@/components/batch-import-dialog'
 import { KamImportDialog } from '@/components/kam-import-dialog'
 import { BatchVerifyDialog, type VerifyResult } from '@/components/batch-verify-dialog'
-import { useCredentials, useDeleteCredential, useResetFailure, useLoadBalancingMode, useSetLoadBalancingMode, useTokenStats } from '@/hooks/use-credentials'
+import {
+  useCredentialUsageSummary,
+  useCredentials,
+  useDeleteCredential,
+  useLoadBalancingMode,
+  useResetFailure,
+  useSetLoadBalancingMode,
+  useTokenStats,
+} from '@/hooks/use-credentials'
 import { getCredentialBalance } from '@/api/credentials'
 import { extractErrorMessage } from '@/lib/utils'
 import type { BalanceResponse } from '@/types/api'
@@ -49,12 +57,61 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const queryClient = useQueryClient()
   const { data, isLoading, error, refetch } = useCredentials()
   const { data: tokenStats } = useTokenStats()
+  const {
+    data: credentialUsageSummary,
+    isLoading: isUsageSummaryLoading,
+    isError: isUsageSummaryError,
+    refetch: refetchUsageSummary,
+  } = useCredentialUsageSummary()
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
   const { data: loadBalancingData, isLoading: isLoadingMode } = useLoadBalancingMode()
   const { mutate: setLoadBalancingMode, isPending: isSettingMode } = useSetLoadBalancingMode()
 
   const formatNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
+
+  const formatCompactNumber = (value: number | undefined) => {
+    const num = value ?? 0
+    const abs = Math.abs(num)
+
+    if (abs >= 1_000_000) {
+      return `${(num / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
+    }
+
+    if (abs >= 1_000) {
+      return `${(num / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}K`
+    }
+
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  }
+
+  const formatPercentage = (value: number | undefined) => {
+    const percent = Number.isFinite(value) ? Math.max(0, value ?? 0) : 0
+    return `${percent.toFixed(1).replace(/\.0$/, '')}%`
+  }
+
+  const usageRemainingPercentage = Math.min(
+    100,
+    Math.max(0, credentialUsageSummary?.remainingPercentage ?? 0)
+  )
+
+  const usageBarColorClass =
+    usageRemainingPercentage >= 60
+      ? 'bg-emerald-500'
+      : usageRemainingPercentage >= 30
+        ? 'bg-yellow-500'
+        : usageRemainingPercentage >= 10
+          ? 'bg-orange-500'
+          : 'bg-red-500'
+
+  const usagePercentTextClass =
+    usageRemainingPercentage >= 60
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : usageRemainingPercentage >= 30
+        ? 'text-yellow-600 dark:text-yellow-400'
+        : usageRemainingPercentage >= 10
+          ? 'text-orange-600 dark:text-orange-400'
+          : 'text-red-600 dark:text-red-400'
 
   // 计算分页
   const totalPages = Math.ceil((data?.credentials.length || 0) / itemsPerPage)
@@ -119,6 +176,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
   const handleRefresh = () => {
     refetch()
     queryClient.invalidateQueries({ queryKey: ['tokenStats'] })
+    queryClient.invalidateQueries({ queryKey: ['credentialUsageSummary'] })
     toast.success('已刷新凭据列表')
   }
 
@@ -575,9 +633,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-left">
-                <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalRequests)}</div>
+                <div className="text-2xl font-bold" title={formatNumber(tokenStats?.totalRequests)}>{formatCompactNumber(tokenStats?.totalRequests)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  成功 {formatNumber(tokenStats?.successfulRequests)} / 失败 {formatNumber(tokenStats?.failedRequests)}
+                  成功 {formatCompactNumber(tokenStats?.successfulRequests)} / 失败 {formatCompactNumber(tokenStats?.failedRequests)}
                 </p>
               </CardContent>
             </Card>
@@ -588,9 +646,9 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-left">
-                <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalTokens)}</div>
+                <div className="text-2xl font-bold" title={formatNumber(tokenStats?.totalTokens)}>{formatCompactNumber(tokenStats?.totalTokens)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  缓存 {formatNumber(tokenStats?.cacheTokens)} / 思考 {formatNumber(tokenStats?.thinkingTokens)}
+                  缓存 {formatCompactNumber(tokenStats?.cacheTokens)} / 思考 {formatCompactNumber(tokenStats?.thinkingTokens)}
                 </p>
               </CardContent>
             </Card>
@@ -601,7 +659,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-left">
-                <div className="text-2xl font-bold">{formatNumber(tokenStats?.rpm)}</div>
+                <div className="text-2xl font-bold" title={formatNumber(tokenStats?.rpm)}>{formatCompactNumber(tokenStats?.rpm)}</div>
               </CardContent>
             </Card>
             <Card>
@@ -611,10 +669,58 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-left">
-                <div className="text-2xl font-bold">{formatNumber(tokenStats?.tpm)}</div>
+                <div className="text-2xl font-bold" title={formatNumber(tokenStats?.tpm)}>{formatCompactNumber(tokenStats?.tpm)}</div>
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader className="pb-2 text-left">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                所有可用凭据用量统计
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-left space-y-3">
+              {isUsageSummaryError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-red-600 dark:text-red-400">统计数据获取失败</p>
+                  <Button type="button" size="sm" variant="outline" onClick={() => refetchUsageSummary()}>
+                    重新获取
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between gap-3">
+                    <div
+                      className="text-2xl font-bold tabular-nums"
+                      title={`${formatNumber(credentialUsageSummary?.totalRemaining)} / ${formatNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                    >
+                      {isUsageSummaryLoading
+                        ? '加载中...'
+                        : `${formatCompactNumber(credentialUsageSummary?.totalRemaining)} / ${formatCompactNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums ${usagePercentTextClass}`}>
+                      {isUsageSummaryLoading ? '...' : formatPercentage(usageRemainingPercentage)}
+                    </span>
+                  </div>
+
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${usageBarColorClass}`}
+                      style={{ width: `${usageRemainingPercentage}%` }}
+                    />
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    可用凭据 {formatNumber(credentialUsageSummary?.availableCredentialCount)} 个
+                    {credentialUsageSummary && credentialUsageSummary.failedCredentialCount > 0
+                      ? `，其中 ${formatNumber(credentialUsageSummary.failedCredentialCount)} 个查询失败`
+                      : ''}
+                  </p>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* 凭据列表 */}

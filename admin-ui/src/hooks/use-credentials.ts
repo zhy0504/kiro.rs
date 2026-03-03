@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   getCredentials,
+  getCredentialUsageSummary,
   getTokenStats,
   setCredentialDisabled,
   setCredentialPriority,
@@ -28,6 +29,15 @@ export function useTokenStats() {
     queryKey: ['tokenStats'],
     queryFn: getTokenStats,
     refetchInterval: 5000, // 每 5 秒刷新一次
+  })
+}
+
+// 查询可用凭据用量汇总
+export function useCredentialUsageSummary() {
+  return useQuery({
+    queryKey: ['credentialUsageSummary'],
+    queryFn: getCredentialUsageSummary,
+    refetchInterval: 30000, // 每 30 秒刷新一次
   })
 }
 
