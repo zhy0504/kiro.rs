@@ -70,9 +70,23 @@ export function Dashboard({ onLogout }: DashboardProps) {
 
   const formatNumber = (value: number | undefined) => (value ?? 0).toLocaleString()
 
+  const formatFixed1 = (value: number | undefined) =>
+    (value ?? 0).toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })
+
   const formatCompactNumber = (value: number | undefined) => {
     const num = value ?? 0
     const abs = Math.abs(num)
+
+    if (abs >= 1_000_000_000_000) {
+      return `${(num / 1_000_000_000_000).toFixed(abs >= 10_000_000_000_000 ? 0 : 1)}T`
+    }
+
+    if (abs >= 1_000_000_000) {
+      return `${(num / 1_000_000_000).toFixed(abs >= 10_000_000_000 ? 0 : 1)}B`
+    }
 
     if (abs >= 1_000_000) {
       return `${(num / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`
@@ -83,6 +97,32 @@ export function Dashboard({ onLogout }: DashboardProps) {
     }
 
     return num.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  }
+
+  const formatCompactNumberFixed1 = (value: number | undefined) => {
+    const num = value ?? 0
+    const abs = Math.abs(num)
+
+    if (abs >= 1_000_000_000_000) {
+      return `${(num / 1_000_000_000_000).toFixed(1)}T`
+    }
+
+    if (abs >= 1_000_000_000) {
+      return `${(num / 1_000_000_000).toFixed(1)}B`
+    }
+
+    if (abs >= 1_000_000) {
+      return `${(num / 1_000_000).toFixed(1)}M`
+    }
+
+    if (abs >= 1_000) {
+      return `${(num / 1_000).toFixed(1)}K`
+    }
+
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })
   }
 
   const formatPercentage = (value: number | undefined) => {
@@ -638,11 +678,11 @@ export function Dashboard({ onLogout }: DashboardProps) {
                     <div className="flex items-end justify-between gap-3">
                       <div
                         className="text-2xl font-bold tabular-nums"
-                        title={`${formatNumber(credentialUsageSummary?.totalRemaining)} / ${formatNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                        title={`${formatFixed1(credentialUsageSummary?.totalRemaining)} / ${formatFixed1(credentialUsageSummary?.totalUsageLimit)}`}
                       >
                         {isUsageSummaryLoading
                           ? '加载中...'
-                          : `${formatCompactNumber(credentialUsageSummary?.totalRemaining)} / ${formatCompactNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                          : `${formatCompactNumberFixed1(credentialUsageSummary?.totalRemaining)} / ${formatCompactNumberFixed1(credentialUsageSummary?.totalUsageLimit)}`}
                       </div>
                       <span className={`text-sm font-semibold tabular-nums ${usagePercentTextClass}`}>
                         {isUsageSummaryLoading ? '...' : formatPercentage(usageRemainingPercentage)}
@@ -702,7 +742,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-left">
-                <div className="text-2xl font-bold" title={formatNumber(tokenStats?.totalTokens)}>{formatCompactNumber(tokenStats?.totalTokens)}</div>
+                <div className="text-2xl font-bold" title={formatFixed1(tokenStats?.totalTokens)}>{formatCompactNumberFixed1(tokenStats?.totalTokens)}</div>
                 <p className="text-xs text-muted-foreground mt-1">
                   缓存 {formatCompactNumber(tokenStats?.cacheTokens)} / 思考 {formatCompactNumber(tokenStats?.thinkingTokens)}
                 </p>
