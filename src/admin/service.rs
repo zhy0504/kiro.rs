@@ -686,10 +686,23 @@ impl AdminService {
         }
     }
 
-    /// 获取全局请求/Token 统计（优先返回快照，确保跨重启连续）
+    /// 获取全局请求/Token 统计（实时值）
     pub fn get_token_stats(&self) -> TokenStatsResponse {
-        let state = self.snapshot_state.lock();
-        state.token_stats.clone()
+        let runtime = self.token_manager.token_stats_snapshot();
+        let snapshot_version = self.snapshot_state.lock().snapshot_version;
+
+        TokenStatsResponse {
+            total_requests: runtime.total_requests,
+            successful_requests: runtime.successful_requests,
+            failed_requests: runtime.failed_requests,
+            total_tokens: runtime.total_tokens,
+            cache_tokens: runtime.cache_tokens,
+            thinking_tokens: runtime.thinking_tokens,
+            rpm: runtime.rpm,
+            tpm: runtime.tpm,
+            snapshot_version,
+            captured_at: Self::now_utc_rfc3339(),
+        }
     }
 
     /// 获取所有可用凭据的用量汇总（返回最近快照）
