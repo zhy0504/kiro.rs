@@ -527,86 +527,94 @@ export function Dashboard({ onLogout }: DashboardProps) {
       {/* 主内容 */}
       <main className="container mx-auto px-4 md:px-8 py-6">
         {/* 统计卡片 */}
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                凭据总数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(data?.total)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                可用凭据
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{formatNumber(data?.available)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                当前活跃
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold flex items-center gap-2">
-                #{data?.currentId || '-'}
-                <Badge variant="success">活跃</Badge>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                总请求数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalRequests)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                成功 {formatNumber(tokenStats?.successfulRequests)} / 失败 {formatNumber(tokenStats?.failedRequests)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                总 Token 数
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalTokens)}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                缓存 {formatNumber(tokenStats?.cacheTokens)} / 思考 {formatNumber(tokenStats?.thinkingTokens)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                RPM
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(tokenStats?.rpm)}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                TPM
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{formatNumber(tokenStats?.tpm)}</div>
-            </CardContent>
-          </Card>
+        <div className="mb-6 space-y-4">
+          {/* 第一行：凭据统计 */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  凭据总数
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold">{formatNumber(data?.total)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  可用凭据
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold text-green-600">{formatNumber(data?.available)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  当前活跃
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold flex items-center justify-start gap-2">
+                  #{data?.currentId || '-'}
+                  <Badge variant="success">活跃</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 第二行：Token 统计 */}
+          <h3 className="text-sm font-semibold text-muted-foreground text-left">Token统计</h3>
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  总请求数
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalRequests)}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  成功 {formatNumber(tokenStats?.successfulRequests)} / 失败 {formatNumber(tokenStats?.failedRequests)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  总 Token 数
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold">{formatNumber(tokenStats?.totalTokens)}</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  缓存 {formatNumber(tokenStats?.cacheTokens)} / 思考 {formatNumber(tokenStats?.thinkingTokens)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  RPM
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold">{formatNumber(tokenStats?.rpm)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2 text-left">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  TPM
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-left">
+                <div className="text-2xl font-bold">{formatNumber(tokenStats?.tpm)}</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* 凭据列表 */}
