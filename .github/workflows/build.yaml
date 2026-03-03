@@ -2,8 +2,6 @@ name: Build Artifacts
 
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -110,12 +108,51 @@ jobs:
       - name: Build app
         run: cargo build --release --target ${{ matrix.target }}
 
+      - name: Prepare release artifact
+        shell: bash
+        run: |
+          mkdir -p release
+          if [ -f "target/${{ matrix.target }}/release/kiro-rs.exe" ]; then
+            cp "target/${{ matrix.target }}/release/kiro-rs.exe" "release/kiro-rs-${{ steps.version.outputs.version }}-${{ matrix.name }}.exe"
+          else
+            cp "target/${{ matrix.target }}/release/kiro-rs" "release/kiro-rs-${{ steps.version.outputs.version }}-${{ matrix.name }}"
+          fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kiro-rs-${{ steps.version.outputs.version }}-${{ matrix.name }}
           if-no-files-found: error
           compression-level: 6
-          path: |
-            target/${{ matrix.target }}/release/kiro-rs
-            target/${{ matrix.target }}/release/kiro-rs.exe
+          path: release/*
+
+  release:
+    needs: build
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Determine release tag
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: release-assets/**/*

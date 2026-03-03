@@ -25,6 +25,14 @@ const MAX_RETRIES_PER_CREDENTIAL: usize = 3;
 /// 总重试次数硬上限（避免无限重试）
 const MAX_TOTAL_RETRIES: usize = 9;
 
+/// 主对话/MCP 请求统一 User-Agent
+const CODEWHISPERER_USER_AGENT: &str =
+    "aws-sdk-rust/1.3.12 ua/2.1 api/codewhispererstreaming/0.1.13922 os/linux lang/rust/1.92.0 md/appVersion-1.26.2 app/AmazonQ-For-CLI";
+
+/// 主对话/MCP 请求统一 x-amz-user-agent
+const CODEWHISPERER_AMZ_USER_AGENT: &str =
+    "aws-sdk-rust/1.3.12 ua/2.1 api/codewhispererstreaming/0.1.13922 os/linux lang/rust/1.92.0 m/F app/AmazonQ-For-CLI";
+
 /// Kiro API Provider
 ///
 /// 核心组件，负责与 Kiro API 通信
@@ -147,21 +155,11 @@ impl KiroProvider {
     /// # Arguments
     /// * `ctx` - API 调用上下文，包含凭据和 token
     fn build_headers(&self, ctx: &CallContext) -> anyhow::Result<HeaderMap> {
-        let config = self.token_manager.config();
-
-        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
+        let _machine_id = machine_id::generate_from_credentials(
+            &ctx.credentials,
+            self.token_manager.config(),
+        )
             .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
-
-        let kiro_version = &config.kiro_version;
-        let os_name = &config.system_version;
-        let node_version = &config.node_version;
-
-        let x_amz_user_agent = format!("aws-sdk-js/1.0.27 KiroIDE-{}-{}", kiro_version, machine_id);
-
-        let user_agent = format!(
-            "aws-sdk-js/1.0.27 ua/2.1 os/{} lang/js md/nodejs#{} api/codewhispererstreaming#1.0.27 m/E KiroIDE-{}-{}",
-            os_name, node_version, kiro_version, machine_id
-        );
 
         let mut headers = HeaderMap::new();
 
@@ -173,11 +171,11 @@ impl KiroProvider {
         headers.insert("x-amzn-kiro-agent-mode", HeaderValue::from_static("vibe"));
         headers.insert(
             "x-amz-user-agent",
-            HeaderValue::from_str(&x_amz_user_agent).unwrap(),
+            HeaderValue::from_static(CODEWHISPERER_AMZ_USER_AGENT),
         );
         headers.insert(
             reqwest::header::USER_AGENT,
-            HeaderValue::from_str(&user_agent).unwrap(),
+            HeaderValue::from_static(CODEWHISPERER_USER_AGENT),
         );
         headers.insert(HOST, HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap());
         headers.insert(
@@ -199,21 +197,11 @@ impl KiroProvider {
 
     /// 构建 MCP 请求头
     fn build_mcp_headers(&self, ctx: &CallContext) -> anyhow::Result<HeaderMap> {
-        let config = self.token_manager.config();
-
-        let machine_id = machine_id::generate_from_credentials(&ctx.credentials, config)
+        let _machine_id = machine_id::generate_from_credentials(
+            &ctx.credentials,
+            self.token_manager.config(),
+        )
             .ok_or_else(|| anyhow::anyhow!("无法生成 machine_id，请检查凭证配置"))?;
-
-        let kiro_version = &config.kiro_version;
-        let os_name = &config.system_version;
-        let node_version = &config.node_version;
-
-        let x_amz_user_agent = format!("aws-sdk-js/1.0.27 KiroIDE-{}-{}", kiro_version, machine_id);
-
-        let user_agent = format!(
-            "aws-sdk-js/1.0.27 ua/2.1 os/{} lang/js md/nodejs#{} api/codewhispererstreaming#1.0.27 m/E KiroIDE-{}-{}",
-            os_name, node_version, kiro_version, machine_id
-        );
 
         let mut headers = HeaderMap::new();
 
@@ -221,9 +209,9 @@ impl KiroProvider {
         headers.insert("content-type", HeaderValue::from_static("application/json"));
         headers.insert(
             "x-amz-user-agent",
-            HeaderValue::from_str(&x_amz_user_agent).unwrap(),
+            HeaderValue::from_static(CODEWHISPERER_AMZ_USER_AGENT),
         );
-        headers.insert("user-agent", HeaderValue::from_str(&user_agent).unwrap());
+        headers.insert("user-agent", HeaderValue::from_static(CODEWHISPERER_USER_AGENT));
         headers.insert("host", HeaderValue::from_str(&self.base_domain_for(&ctx.credentials)).unwrap());
         headers.insert(
             "amz-sdk-invocation-id",

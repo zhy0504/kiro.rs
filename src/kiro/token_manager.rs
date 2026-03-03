@@ -176,9 +176,8 @@ async fn refresh_social_token(
 
     let refresh_url = format!("https://prod.{}.auth.desktop.kiro.dev/refreshToken", region);
     let refresh_domain = format!("prod.{}.auth.desktop.kiro.dev", region);
-    let machine_id = machine_id::generate_from_credentials(credentials, config)
+    let _machine_id = machine_id::generate_from_credentials(credentials, config)
         .ok_or_else(|| anyhow::anyhow!("无法生成 machineId"))?;
-    let kiro_version = &config.kiro_version;
 
     let client = build_client(proxy, 60, config.tls_backend)?;
     let body = RefreshRequest {
@@ -189,10 +188,8 @@ async fn refresh_social_token(
         .post(&refresh_url)
         .header("Accept", "application/json, text/plain, */*")
         .header("Content-Type", "application/json")
-        .header(
-            "User-Agent",
-            format!("KiroIDE-{}-{}", kiro_version, machine_id),
-        )
+        .header("x-amz-user-agent", CODEWHISPERER_RUNTIME_AMZ_USER_AGENT)
+        .header("User-Agent", CODEWHISPERER_RUNTIME_USER_AGENT)
         .header("Accept-Encoding", "gzip, compress, deflate, br")
         .header("host", &refresh_domain)
         .header("Connection", "close")
@@ -234,8 +231,13 @@ async fn refresh_social_token(
     Ok(new_credentials)
 }
 
-/// IdC Token 刷新所需的 x-amz-user-agent header
-const IDC_AMZ_USER_AGENT: &str = "aws-sdk-js/3.738.0 ua/2.1 os/other lang/js md/browser#unknown_unknown api/sso-oidc#3.738.0 m/E KiroIDE";
+/// Token 刷新与额度查询统一 User-Agent
+const CODEWHISPERER_RUNTIME_USER_AGENT: &str =
+    "aws-sdk-rust/1.3.12 ua/2.1 api/codewhispererruntime/0.1.13922 os/linux lang/rust/1.92.0 md/appVersion-1.26.2 app/AmazonQ-For-CLI";
+
+/// Token 刷新与额度查询统一 x-amz-user-agent
+const CODEWHISPERER_RUNTIME_AMZ_USER_AGENT: &str =
+    "aws-sdk-rust/1.3.12 ua/2.1 api/codewhispererruntime/0.1.13922 os/linux lang/rust/1.92.0 m/F,C app/AmazonQ-For-CLI";
 
 /// 刷新 IdC Token (AWS SSO OIDC)
 async fn refresh_idc_token(
@@ -272,11 +274,11 @@ async fn refresh_idc_token(
         .header("Content-Type", "application/json")
         .header("Host", format!("oidc.{}.amazonaws.com", region))
         .header("Connection", "keep-alive")
-        .header("x-amz-user-agent", IDC_AMZ_USER_AGENT)
+        .header("x-amz-user-agent", CODEWHISPERER_RUNTIME_AMZ_USER_AGENT)
         .header("Accept", "*/*")
         .header("Accept-Language", "*")
         .header("sec-fetch-mode", "cors")
-        .header("User-Agent", "node")
+        .header("User-Agent", CODEWHISPERER_RUNTIME_USER_AGENT)
         .header("Accept-Encoding", "br, gzip, deflate")
         .json(&body)
         .send()
@@ -312,9 +314,6 @@ async fn refresh_idc_token(
     Ok(new_credentials)
 }
 
-/// getUsageLimits API 所需的 x-amz-user-agent header 前缀
-const USAGE_LIMITS_AMZ_USER_AGENT_PREFIX: &str = "aws-sdk-js/1.0.0";
-
 /// 获取使用额度信息
 pub(crate) async fn get_usage_limits(
     credentials: &KiroCredentials,
@@ -327,9 +326,8 @@ pub(crate) async fn get_usage_limits(
     // 优先级：凭据.api_region > config.api_region > config.region
     let region = credentials.effective_api_region(config);
     let host = format!("q.{}.amazonaws.com", region);
-    let machine_id = machine_id::generate_from_credentials(credentials, config)
+    let _machine_id = machine_id::generate_from_credentials(credentials, config)
         .ok_or_else(|| anyhow::anyhow!("无法生成 machineId"))?;
-    let kiro_version = &config.kiro_version;
 
     // 构建 URL
     let mut url = format!(
@@ -342,23 +340,12 @@ pub(crate) async fn get_usage_limits(
         url.push_str(&format!("&profileArn={}", urlencoding::encode(profile_arn)));
     }
 
-    // 构建 User-Agent headers
-    let user_agent = format!(
-        "aws-sdk-js/1.0.0 ua/2.1 os/darwin#24.6.0 lang/js md/nodejs#22.21.1 \
-         api/codewhispererruntime#1.0.0 m/N,E KiroIDE-{}-{}",
-        kiro_version, machine_id
-    );
-    let amz_user_agent = format!(
-        "{} KiroIDE-{}-{}",
-        USAGE_LIMITS_AMZ_USER_AGENT_PREFIX, kiro_version, machine_id
-    );
-
     let client = build_client(proxy, 60, config.tls_backend)?;
 
     let response = client
         .get(&url)
-        .header("x-amz-user-agent", &amz_user_agent)
-        .header("User-Agent", &user_agent)
+        .header("x-amz-user-agent", CODEWHISPERER_RUNTIME_AMZ_USER_AGENT)
+        .header("User-Agent", CODEWHISPERER_RUNTIME_USER_AGENT)
         .header("host", &host)
         .header("amz-sdk-invocation-id", uuid::Uuid::new_v4().to_string())
         .header("amz-sdk-request", "attempt=1; max=1")
