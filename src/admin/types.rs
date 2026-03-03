@@ -161,7 +161,7 @@ pub struct BalanceResponse {
 // ============ Token 统计 ============
 
 /// Token 统计响应
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TokenStatsResponse {
     /// 请求总数（成功 + 失败）
@@ -180,10 +180,16 @@ pub struct TokenStatsResponse {
     pub rpm: u64,
     /// 每分钟 Token 数（最近 60 秒）
     pub tpm: u64,
+    /// 快照版本号（单调递增）
+    #[serde(default)]
+    pub snapshot_version: u64,
+    /// 快照采集时间（RFC3339, UTC）
+    #[serde(default)]
+    pub captured_at: String,
 }
 
 /// 可用凭据用量汇总响应
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialUsageSummaryResponse {
     /// 可用凭据数量（未禁用）
@@ -200,6 +206,28 @@ pub struct CredentialUsageSummaryResponse {
     pub total_remaining: f64,
     /// 总剩余占比（0~100）
     pub remaining_percentage: f64,
+    /// 快照版本号（单调递增）
+    #[serde(default)]
+    pub snapshot_version: u64,
+    /// 快照采集时间（RFC3339, UTC）
+    #[serde(default)]
+    pub captured_at: String,
+    /// 最近一次用量刷新时间（RFC3339, UTC）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_refresh_at: Option<String>,
+    /// 最近一次用量刷新触发来源（token_changed/manual/credential_changed/stale_fallback/startup）
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_refresh_trigger: Option<String>,
+    /// 最近一次用量刷新状态（success/failed/unknown）
+    #[serde(default = "default_usage_refresh_status")]
+    pub last_refresh_status: String,
+    /// 最近一次用量刷新错误摘要
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_refresh_error: Option<String>,
+}
+
+fn default_usage_refresh_status() -> String {
+    "unknown".to_string()
 }
 
 // ============ 负载均衡配置 ============

@@ -37,6 +37,8 @@ export interface BalanceResponse {
 
 // Token 统计响应
 export interface TokenStatsResponse {
+  snapshotVersion: number
+  capturedAt: string
   totalRequests: number
   successfulRequests: number
   failedRequests: number
@@ -49,6 +51,12 @@ export interface TokenStatsResponse {
 
 // 可用凭据用量汇总响应
 export interface CredentialUsageSummaryResponse {
+  snapshotVersion: number
+  capturedAt: string
+  lastRefreshAt?: string
+  lastRefreshTrigger?: string
+  lastRefreshStatus: string
+  lastRefreshError?: string
   availableCredentialCount: number
   queriedCredentialCount: number
   failedCredentialCount: number

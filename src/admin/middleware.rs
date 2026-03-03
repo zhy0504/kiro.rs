@@ -24,10 +24,10 @@ pub struct AdminState {
 }
 
 impl AdminState {
-    pub fn new(admin_api_key: impl Into<String>, service: AdminService) -> Self {
+    pub fn new(admin_api_key: impl Into<String>, service: Arc<AdminService>) -> Self {
         Self {
             admin_api_key: admin_api_key.into(),
-            service: Arc::new(service),
+            service,
         }
     }
 }

@@ -90,6 +90,23 @@ export function Dashboard({ onLogout }: DashboardProps) {
     return `${percent.toFixed(1).replace(/\.0$/, '')}%`
   }
 
+  const formatLocalDateTime = (value?: string | null) => {
+    if (!value || !value.trim()) {
+      return '-'
+    }
+
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString()
+  }
+
+  const summarizeError = (value?: string) => {
+    if (!value || !value.trim()) {
+      return '-'
+    }
+
+    return value.split('\n')[0].trim() || '-'
+  }
+
   const usageRemainingPercentage = Math.min(
     100,
     Math.max(0, credentialUsageSummary?.remainingPercentage ?? 0)
@@ -647,6 +664,12 @@ export function Dashboard({ onLogout }: DashboardProps) {
                         ? `，超时/失败 ${formatNumber(credentialUsageSummary.failedCredentialCount)} 个`
                         : ''}
                     </p>
+
+                    <p className="text-xs text-muted-foreground">
+                      {credentialUsageSummary?.lastRefreshStatus === 'failed' && credentialUsageSummary.lastRefreshError
+                        ? `最近刷新失败：${summarizeError(credentialUsageSummary.lastRefreshError)}`
+                        : `最近刷新：${formatLocalDateTime(credentialUsageSummary?.lastRefreshAt)}（触发：${credentialUsageSummary?.lastRefreshTrigger || '-'}）`}
+                    </p>
                   </>
                 )}
               </div>
@@ -654,7 +677,10 @@ export function Dashboard({ onLogout }: DashboardProps) {
           </Card>
 
           {/* Token 统计 */}
-          <h3 className="text-sm font-semibold text-muted-foreground text-left">Token统计</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-sm font-semibold text-muted-foreground text-left">Token统计</h3>
+            <p className="text-xs text-muted-foreground">数据时间：{formatLocalDateTime(tokenStats?.capturedAt)}</p>
+          </div>
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
               <CardHeader className="pb-2 text-left">

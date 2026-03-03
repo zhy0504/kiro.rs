@@ -28,7 +28,7 @@ export function useTokenStats() {
   return useQuery({
     queryKey: ['tokenStats'],
     queryFn: getTokenStats,
-    refetchInterval: 5000, // 每 5 秒刷新一次
+    refetchInterval: 60000, // 每 60 秒刷新一次
   })
 }
 
@@ -40,7 +40,7 @@ export function useCredentialUsageSummary(availableCredentialCount: number | und
   return useQuery({
     queryKey: ['credentialUsageSummary', count],
     queryFn: () => getCredentialUsageSummary(timeoutMs),
-    refetchInterval: 30000, // 每 30 秒刷新一次
+    refetchInterval: 60000, // 每 60 秒刷新一次
     retry: false,
   })
 }

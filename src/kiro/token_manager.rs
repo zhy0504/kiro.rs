@@ -1217,6 +1217,27 @@ impl MultiTokenManager {
         }
     }
 
+    /// 从外部快照恢复累计统计（仅累计项，不恢复窗口项）
+    pub fn hydrate_runtime_totals(
+        &self,
+        total_requests: u64,
+        successful_requests: u64,
+        failed_requests: u64,
+        total_tokens: u64,
+        cache_tokens: u64,
+        thinking_tokens: u64,
+    ) {
+        let mut stats = self.runtime_stats.lock();
+        stats.total_requests = total_requests;
+        stats.successful_requests = successful_requests;
+        stats.failed_requests = failed_requests;
+        stats.total_tokens = total_tokens;
+        stats.cache_tokens = cache_tokens;
+        stats.thinking_tokens = thinking_tokens;
+        stats.recent_requests.clear();
+        stats.recent_token_events.clear();
+    }
+
     /// 报告指定凭据 API 调用失败
     ///
     /// 增加失败计数，达到阈值时禁用凭据并切换到优先级最高的可用凭据
