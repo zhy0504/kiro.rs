@@ -20,7 +20,7 @@ const api = axios.create({
   },
 })
 
-const USAGE_SUMMARY_TIMEOUT_MS = 30000
+const DEFAULT_USAGE_SUMMARY_TIMEOUT_MS = 30000
 
 // 请求拦截器添加 API Key
 api.interceptors.request.use((config) => {
@@ -44,9 +44,11 @@ export async function getTokenStats(): Promise<TokenStatsResponse> {
 }
 
 // 获取可用凭据用量汇总
-export async function getCredentialUsageSummary(): Promise<CredentialUsageSummaryResponse> {
+export async function getCredentialUsageSummary(
+  timeoutMs: number = DEFAULT_USAGE_SUMMARY_TIMEOUT_MS
+): Promise<CredentialUsageSummaryResponse> {
   const { data } = await api.get<CredentialUsageSummaryResponse>('/usage-summary', {
-    timeout: USAGE_SUMMARY_TIMEOUT_MS,
+    timeout: timeoutMs,
   })
   return data
 }

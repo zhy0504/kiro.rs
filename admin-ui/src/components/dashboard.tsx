@@ -62,7 +62,7 @@ export function Dashboard({ onLogout }: DashboardProps) {
     isLoading: isUsageSummaryLoading,
     isError: isUsageSummaryError,
     refetch: refetchUsageSummary,
-  } = useCredentialUsageSummary()
+  } = useCredentialUsageSummary(data?.available)
   const { mutate: deleteCredential } = useDeleteCredential()
   const { mutate: resetFailure } = useResetFailure()
   const { data: loadBalancingData, isLoading: isLoadingMode } = useLoadBalancingMode()

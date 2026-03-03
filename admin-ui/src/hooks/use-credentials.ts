@@ -33,10 +33,13 @@ export function useTokenStats() {
 }
 
 // 查询可用凭据用量汇总
-export function useCredentialUsageSummary() {
+export function useCredentialUsageSummary(availableCredentialCount: number | undefined) {
+  const count = Math.max(0, availableCredentialCount ?? 0)
+  const timeoutMs = (count * 3 + 30) * 1000
+
   return useQuery({
-    queryKey: ['credentialUsageSummary'],
-    queryFn: getCredentialUsageSummary,
+    queryKey: ['credentialUsageSummary', count],
+    queryFn: () => getCredentialUsageSummary(timeoutMs),
     refetchInterval: 30000, // 每 30 秒刷新一次
     retry: false,
   })
