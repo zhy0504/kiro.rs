@@ -586,44 +586,74 @@ export function Dashboard({ onLogout }: DashboardProps) {
       <main className="container mx-auto px-4 md:px-8 py-6">
         {/* 统计卡片 */}
         <div className="mb-6 space-y-4">
-          {/* 第一行：凭据统计 */}
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader className="pb-2 text-left">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  凭据总数
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-left">
-                <div className="text-2xl font-bold">{formatNumber(data?.total)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2 text-left">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  可用凭据
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-left">
-                <div className="text-2xl font-bold text-green-600">{formatNumber(data?.available)}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2 text-left">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  当前活跃
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="text-left">
-                <div className="text-2xl font-bold flex items-center justify-start gap-2">
-                  #{data?.currentId || '-'}
-                  <Badge variant="success">活跃</Badge>
+          <h3 className="text-sm font-semibold text-muted-foreground text-left">凭据统计</h3>
+          <Card>
+            <CardContent className="pt-6 space-y-5">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-lg border bg-muted/20 p-4 text-left">
+                  <p className="text-sm font-medium text-muted-foreground">凭据总数</p>
+                  <div className="mt-1 text-2xl font-bold tabular-nums">{formatNumber(data?.total)}</div>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="rounded-lg border bg-muted/20 p-4 text-left">
+                  <p className="text-sm font-medium text-muted-foreground">可用凭据</p>
+                  <div className="mt-1 text-2xl font-bold text-green-600 tabular-nums">{formatNumber(data?.available)}</div>
+                </div>
+                <div className="rounded-lg border bg-muted/20 p-4 text-left">
+                  <p className="text-sm font-medium text-muted-foreground">当前活跃</p>
+                  <div className="mt-1 text-2xl font-bold flex items-center justify-start gap-2">
+                    #{data?.currentId || '-'}
+                    <Badge variant="success">活跃</Badge>
+                  </div>
+                </div>
+              </div>
 
-          {/* 第二行：Token 统计 */}
+              <div className="border-t pt-4 text-left space-y-3">
+                <p className="text-sm font-medium text-muted-foreground">所有可用凭据用量统计</p>
+                {isUsageSummaryError ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-red-600 dark:text-red-400">统计数据获取失败（请求超时或网络异常）</p>
+                    <Button type="button" size="sm" variant="outline" onClick={() => refetchUsageSummary()}>
+                      重新获取
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-end justify-between gap-3">
+                      <div
+                        className="text-2xl font-bold tabular-nums"
+                        title={`${formatNumber(credentialUsageSummary?.totalRemaining)} / ${formatNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                      >
+                        {isUsageSummaryLoading
+                          ? '加载中...'
+                          : `${formatCompactNumber(credentialUsageSummary?.totalRemaining)} / ${formatCompactNumber(credentialUsageSummary?.totalUsageLimit)}`}
+                      </div>
+                      <span className={`text-sm font-semibold tabular-nums ${usagePercentTextClass}`}>
+                        {isUsageSummaryLoading ? '...' : formatPercentage(usageRemainingPercentage)}
+                      </span>
+                    </div>
+
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${usageBarColorClass}`}
+                        style={{ width: `${usageRemainingPercentage}%` }}
+                      />
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      {isUsageSummaryLoading
+                        ? '正在统计可用凭据用量...'
+                        : `可用凭据 ${formatNumber(credentialUsageSummary?.availableCredentialCount)} 个，已统计 ${formatNumber(credentialUsageSummary?.queriedCredentialCount)} 个`}
+                      {credentialUsageSummary && credentialUsageSummary.failedCredentialCount > 0
+                        ? `，超时/失败 ${formatNumber(credentialUsageSummary.failedCredentialCount)} 个`
+                        : ''}
+                    </p>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Token 统计 */}
           <h3 className="text-sm font-semibold text-muted-foreground text-left">Token统计</h3>
           <div className="grid gap-4 md:grid-cols-4">
             <Card>
@@ -673,54 +703,6 @@ export function Dashboard({ onLogout }: DashboardProps) {
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardHeader className="pb-2 text-left">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                所有可用凭据用量统计
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-left space-y-3">
-              {isUsageSummaryError ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-red-600 dark:text-red-400">统计数据获取失败</p>
-                  <Button type="button" size="sm" variant="outline" onClick={() => refetchUsageSummary()}>
-                    重新获取
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-end justify-between gap-3">
-                    <div
-                      className="text-2xl font-bold tabular-nums"
-                      title={`${formatNumber(credentialUsageSummary?.totalRemaining)} / ${formatNumber(credentialUsageSummary?.totalUsageLimit)}`}
-                    >
-                      {isUsageSummaryLoading
-                        ? '加载中...'
-                        : `${formatCompactNumber(credentialUsageSummary?.totalRemaining)} / ${formatCompactNumber(credentialUsageSummary?.totalUsageLimit)}`}
-                    </div>
-                    <span className={`text-sm font-semibold tabular-nums ${usagePercentTextClass}`}>
-                      {isUsageSummaryLoading ? '...' : formatPercentage(usageRemainingPercentage)}
-                    </span>
-                  </div>
-
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${usageBarColorClass}`}
-                      style={{ width: `${usageRemainingPercentage}%` }}
-                    />
-                  </div>
-
-                  <p className="text-xs text-muted-foreground">
-                    可用凭据 {formatNumber(credentialUsageSummary?.availableCredentialCount)} 个
-                    {credentialUsageSummary && credentialUsageSummary.failedCredentialCount > 0
-                      ? `，其中 ${formatNumber(credentialUsageSummary.failedCredentialCount)} 个查询失败`
-                      : ''}
-                  </p>
-                </>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
         {/* 凭据列表 */}

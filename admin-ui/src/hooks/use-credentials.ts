@@ -38,6 +38,7 @@ export function useCredentialUsageSummary() {
     queryKey: ['credentialUsageSummary'],
     queryFn: getCredentialUsageSummary,
     refetchInterval: 30000, // 每 30 秒刷新一次
+    retry: false,
   })
 }
 

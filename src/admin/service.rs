@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration as StdDuration;
 
 use chrono::Utc;
 use parking_lot::Mutex;
@@ -20,6 +21,8 @@ use super::types::{
 
 /// 余额缓存过期时间（秒），5 分钟
 const BALANCE_CACHE_TTL_SECS: i64 = 300;
+/// 汇总可用凭据用量时，单个凭据查询超时（秒）
+const USAGE_SUMMARY_PER_CREDENTIAL_TIMEOUT_SECS: u64 = 3;
 
 /// 缓存的余额条目（含时间戳）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,16 +130,29 @@ impl AdminService {
         let mut total_remaining: f64 = 0.0;
 
         for id in &available_ids {
-            match self.get_balance(*id).await {
-                Ok(balance) => {
+            match tokio::time::timeout(
+                StdDuration::from_secs(USAGE_SUMMARY_PER_CREDENTIAL_TIMEOUT_SECS),
+                self.get_balance(*id),
+            )
+            .await
+            {
+                Ok(Ok(balance)) => {
                     queried_credential_count += 1;
                     total_usage_limit += balance.usage_limit;
                     total_current_usage += balance.current_usage;
                     total_remaining += balance.remaining;
                 }
-                Err(err) => {
+                Ok(Err(err)) => {
                     failed_credential_count += 1;
                     tracing::warn!("聚合可用凭据用量时查询失败 #{}: {}", id, err);
+                }
+                Err(_) => {
+                    failed_credential_count += 1;
+                    tracing::warn!(
+                        "聚合可用凭据用量时查询超时 #{}（>{}s）",
+                        id,
+                        USAGE_SUMMARY_PER_CREDENTIAL_TIMEOUT_SECS
+                    );
                 }
             }
         }
