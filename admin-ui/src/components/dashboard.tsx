@@ -706,18 +706,26 @@ export function Dashboard({ onLogout }: DashboardProps) {
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {currentCredentials.map((credential) => (
-                  <CredentialCard
-                    key={credential.id}
-                    credential={credential}
-                    onViewBalance={handleViewBalance}
-                    selected={selectedIds.has(credential.id)}
-                    onToggleSelect={() => toggleSelect(credential.id)}
-                    balance={balanceMap.get(credential.id) || null}
-                    loadingBalance={loadingBalanceIds.has(credential.id)}
-                  />
-                ))}
+              <div className="rounded-xl border bg-card overflow-hidden">
+                <div className="hidden lg:grid lg:grid-cols-[minmax(280px,2fr)_180px_minmax(320px,2fr)_auto] px-4 py-2 text-xs font-medium text-muted-foreground border-b bg-muted/30">
+                  <span>凭据</span>
+                  <span>状态</span>
+                  <span>统计</span>
+                  <span className="text-right">操作</span>
+                </div>
+                <div className="divide-y">
+                  {currentCredentials.map((credential) => (
+                    <CredentialCard
+                      key={credential.id}
+                      credential={credential}
+                      onViewBalance={handleViewBalance}
+                      selected={selectedIds.has(credential.id)}
+                      onToggleSelect={() => toggleSelect(credential.id)}
+                      balance={balanceMap.get(credential.id) || null}
+                      loadingBalance={loadingBalanceIds.has(credential.id)}
+                    />
+                  ))}
+                </div>
               </div>
 
               {/* 分页控件 */}
