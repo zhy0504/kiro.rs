@@ -1,9 +1,8 @@
 name: Build and Push Docker Images
 
+# 1. 修改触发条件：去掉 master 分支，只保留 tags 和手动触发
 on:
   push:
-    branches:
-      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -21,29 +20,22 @@ jobs:
   pre-check:
     runs-on: ubuntu-latest
     outputs:
-      should_build: ${{ steps.check.outputs.should_build }}
+      version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
-        with:
-          fetch-depth: 0
-      - name: Check if commit has release tag
-        id: check
+      - name: Determine version
+        id: version
+        # 2. 极简的版本判断：如果是手动触发用输入的版本，否则直接用 Tag 名称
         run: |
-          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == refs/heads/* ]] && git tag --points-at HEAD | grep -q '^v'; then
-            echo "should_build=false" >> $GITHUB_OUTPUT
-            echo "::notice::Skipping beta build: commit already has a release tag"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "should_build=true" >> $GITHUB_OUTPUT
+            # github.ref_name 会自动提取 tag 的名字，比如 v1.0.0
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
   build:
     needs: pre-check
-    if: needs.pre-check.outputs.should_build == 'true'
     runs-on: ${{ matrix.runner }}
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      is_beta: ${{ steps.version.outputs.is_beta }}
 
     strategy:
       fail-fast: false
@@ -60,21 +52,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Determine version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-            echo "is_beta=false" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "is_beta=false" >> $GITHUB_OUTPUT
-          else
-            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-6)
-            echo "version=beta-${SHORT_SHA}" >> $GITHUB_OUTPUT
-            echo "is_beta=true" >> $GITHUB_OUTPUT
-          fi
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -82,8 +59,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -92,44 +69,38 @@ jobs:
           platforms: ${{ matrix.platform }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          push: ${{ github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/') }}
+          # 3. 只要触发了此工作流就推送（因为触发条件已经严格限制为了 tag 和手动）
+          push: true
           provenance: false
-          tags: ghcr.io/${{ github.repository_owner }}/kiro-rs:${{ steps.version.outputs.version }}-${{ matrix.arch }}
+          tags: ghcr.io/${{ github.repository_owner }}/kiro-rs:${{ needs.pre-check.outputs.version }}-${{ matrix.arch }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.description=Kiro.rs Docker Image
 
   manifest:
-    needs: build
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    needs: [pre-check, build]
     runs-on: ubuntu-latest
     steps:
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GHCR_PAT }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push multi-arch manifest
         run: |
-          VERSION="${{ needs.build.outputs.version }}"
-          IS_BETA="${{ needs.build.outputs.is_beta }}"
+          VERSION="${{ needs.pre-check.outputs.version }}"
           IMAGE="ghcr.io/${{ github.repository_owner }}/kiro-rs"
 
-          # Create manifest for version tag
+          # Create manifest for specific version tag (e.g., v1.0.0)
           docker manifest create ${IMAGE}:${VERSION} \
             ${IMAGE}:${VERSION}-amd64 \
             ${IMAGE}:${VERSION}-arm64
           docker manifest push ${IMAGE}:${VERSION}
 
-          # Create manifest for latest/beta alias tag
-          if [ "${IS_BETA}" = "true" ]; then
-            ALIAS_TAG="beta"
-          else
-            ALIAS_TAG="latest"
-          fi
-          docker manifest create ${IMAGE}:${ALIAS_TAG} \
+          # 4. 既然是正式发布，顺便自动更新 latest 标签
+          docker manifest create ${IMAGE}:latest \
             ${IMAGE}:${VERSION}-amd64 \
             ${IMAGE}:${VERSION}-arm64
-          docker manifest push ${IMAGE}:${ALIAS_TAG}
+          docker manifest push ${IMAGE}:latest
