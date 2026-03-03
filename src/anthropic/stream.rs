@@ -1045,9 +1045,10 @@ impl StreamContext {
                     }
                 } else {
                     // 如果还在 thinking 块内，发送剩余内容作为 thinking_delta
+                    let remaining_thinking = self.thinking_buffer.clone();
                     if let Some(thinking_index) = self.thinking_block_index {
                         events.push(
-                            self.create_thinking_delta_event(thinking_index, &self.thinking_buffer),
+                            self.create_thinking_delta_event(thinking_index, &remaining_thinking),
                         );
                     }
                     // 关闭 thinking 块：先发送空的 thinking_delta，再发送 content_block_stop
