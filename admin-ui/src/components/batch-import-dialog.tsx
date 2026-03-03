@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import { toast } from 'sonner'
-import { CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, Loader2, Upload } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -44,10 +44,12 @@ interface VerificationResult {
 
 export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps) {
   const [jsonInput, setJsonInput] = useState('')
+  const [selectedFileName, setSelectedFileName] = useState('')
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
   const [currentProcessing, setCurrentProcessing] = useState<string>('')
   const [results, setResults] = useState<VerificationResult[]>([])
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const { data: existingCredentials } = useCredentials()
   const { mutateAsync: addCredential } = useAddCredential()
@@ -76,9 +78,35 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
 
   const resetForm = () => {
     setJsonInput('')
+    setSelectedFileName('')
     setProgress({ current: 0, total: 0 })
     setCurrentProcessing('')
     setResults([])
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      if (!text.trim()) {
+        toast.error('导入文件为空，请检查后重试')
+        return
+      }
+
+      setJsonInput(text)
+      setSelectedFileName(file.name)
+      toast.success(`已读取文件：${file.name}`)
+    } catch (error) {
+      toast.error('读取文件失败: ' + extractErrorMessage(error))
+    } finally {
+      // 允许重复选择同一文件
+      event.target.value = ''
+    }
   }
 
   const handleBatchImport = async () => {
@@ -319,8 +347,33 @@ export function BatchImportDialog({ open, onOpenChange }: BatchImportDialogProps
         <div className="flex-1 overflow-y-auto space-y-4 py-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              JSON 格式凭据
+              JSON 格式凭据（支持粘贴或文件导入）
             </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json,text/plain"
+              onChange={handleFileChange}
+              disabled={importing}
+              className="hidden"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                通过文件导入
+              </Button>
+              {selectedFileName && (
+                <span className="text-xs text-muted-foreground">
+                  已选择文件：{selectedFileName}
+                </span>
+              )}
+            </div>
             <textarea
               placeholder={'粘贴 JSON 格式的凭据（支持单个对象或数组）\n例如: [{"refreshToken":"...","clientId":"...","clientSecret":"...","authRegion":"us-east-1","apiRegion":"us-west-2"}]\n支持 region 字段自动映射为 authRegion'}
               value={jsonInput}
