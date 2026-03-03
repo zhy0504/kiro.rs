@@ -114,7 +114,7 @@ impl AdminService {
     pub async fn get_credential_usage_summary(&self) -> CredentialUsageSummaryResponse {
         let snapshot = self.token_manager.snapshot();
         let available_ids: Vec<u64> = snapshot
-            .credentials
+            .entries
             .iter()
             .filter(|cred| !cred.disabled)
             .map(|cred| cred.id)
